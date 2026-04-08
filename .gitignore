@@ -60,3 +60,7 @@ workspace/
 # ── KEEP (force-include) ──────────────────────────────────────────────────────
 !.env.example              # template PHẢI commit
 !tools_config.json.env     # template PHẢI commit (sẽ đổi thành tools_config.example.json)
+*.db
+*.xml
+*.log
+pentest_logs
