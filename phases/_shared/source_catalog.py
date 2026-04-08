@@ -1,24 +1,24 @@
-    """
-    phases/_shared/source_catalog.py
-    ──────────────────────────────────
-    Single source of truth cho TAINT_SOURCES và TRUSTED_SOURCES.
+# """
+#     phases/_shared/source_catalog.py
+#     ──────────────────────────────────
+#     Single source of truth cho TAINT_SOURCES và TRUSTED_SOURCES.
 
-    Import ở đây để tránh duplicate giữa:
-    - phases/1_catalog/semgrep_runner.py    (taint source patterns)
-    - phases/1_catalog/gitnexus_runner.py   (custom rule generation)
-    - phases/2_connect/triage.py            (source match scoring bonus)
-    - phases/2_connect/gitnexus_fp_filter.py (trusted source exclusion)
-    """
+#     Import ở đây để tránh duplicate giữa:
+#     - phases/1_catalog/semgrep_runner.py    (taint source patterns)
+#     - phases/1_catalog/gitnexus_runner.py   (custom rule generation)
+#     - phases/2_connect/triage.py            (source match scoring bonus)
+#     - phases/2_connect/gitnexus_fp_filter.py (trusted source exclusion)
+# """
 
-    from __future__ import annotations
+from __future__ import annotations
 
-    from typing import Dict, List
+from typing import Dict, List
 
 
     # ── HTTP / User-controlled sources per stack ─────────────────────────────────
     # Format: Semgrep pattern strings, dùng được cho cả rule generation và triage
 
-    TAINT_SOURCES: Dict[str, List[str]] = {
+TAINT_SOURCES: Dict[str, List[str]] = {
         "php": [
             "$_GET",
             "$_POST",
@@ -165,7 +165,7 @@
     # ── Trusted / Non-user-controlled sources (exclude from taint) ───────────────
     # Nếu source matching pattern này → NOT user-controlled → low FP risk
 
-    TRUSTED_SOURCES: List[str] = [
+TRUSTED_SOURCES: List[str] = [
         # Auth user object (server-controlled)
         "auth()->id()",
         "auth()->user()",
@@ -198,12 +198,12 @@
         # DB lookups by server-controlled PK (not user param)
         "Auth::user()->id",
         "current_user()->id",
-    ]
+]
 
 
     # ── Test file path patterns (FP — should reduce severity) ────────────────────
 
-    TEST_FILE_PATTERNS: List[str] = [
+TEST_FILE_PATTERNS: List[str] = [
         "/test/", "/tests/", "\\test\\", "\\tests\\",
         "/spec/", "/specs/", "\\spec\\",
         "/fixture/", "/fixtures/", "\\fixture\\",
@@ -220,49 +220,49 @@
         # C# test patterns
         "Tests.cs", "Test.cs", "Spec.cs",
         "/UnitTests/", "/IntegrationTests/", "/TestHelpers/",
-    ]
+]
 
 
     # ── Read-only / benign sink patterns ─────────────────────────────────────────
     # Sinks where input flows but write/exec không xảy ra
 
-    READONLY_SINKS: List[str] = [
+READONLY_SINKS: List[str] = [
         "logger.info", "logger.debug", "logger.warning",
         "logging.info", "logging.debug",
         "console.log", "console.debug",
         "print",        # Python stdout — low risk unless logs expose PII
         "syslog",
         "Log.d", "Log.i",
-    ]
+]
 
 
     # ── Helpers ───────────────────────────────────────────────────────────────────
 
-    def get_sources_for_stack(stack: str) -> List[str]:
-        """Return taint sources for a given stack (lowercased)."""
-        stack_key = _normalize_stack(stack)
-        return TAINT_SOURCES.get(stack_key, TAINT_SOURCES["python"])
+def get_sources_for_stack(stack: str) -> List[str]:
+    """Return taint sources for a given stack (lowercased)."""
+    stack_key = _normalize_stack(stack)
+    return TAINT_SOURCES.get(stack_key, TAINT_SOURCES["python"])
 
 
-    def get_semgrep_sources(stack: str) -> List[dict]:
-        """Return sources as list of dicts for Semgrep rule generation."""
-        return [{"pattern": s} for s in get_sources_for_stack(stack)]
+def get_semgrep_sources(stack: str) -> List[dict]:
+    """Return sources as list of dicts for Semgrep rule generation."""
+    return [{"pattern": s} for s in get_sources_for_stack(stack)]
 
 
-    def is_trusted_source(code_snippet: str) -> bool:
-        """Check if a code snippet matches a trusted (server-controlled) source."""
-        snippet_lower = code_snippet.lower()
-        return any(ts.lower() in snippet_lower for ts in TRUSTED_SOURCES)
+def is_trusted_source(code_snippet: str) -> bool:
+    """Check if a code snippet matches a trusted (server-controlled) source."""
+    snippet_lower = code_snippet.lower()
+    return any(ts.lower() in snippet_lower for ts in TRUSTED_SOURCES)
 
 
-    def is_test_file(file_path: str) -> bool:
-        """Check if a file path looks like a test/fixture/migration file."""
-        path_lower = file_path.lower().replace("\\", "/")
-        return any(p.lower().replace("\\", "/") in path_lower for p in TEST_FILE_PATTERNS)
+def is_test_file(file_path: str) -> bool:
+    """Check if a file path looks like a test/fixture/migration file."""
+    path_lower = file_path.lower().replace("\\", "/")
+    return any(p.lower().replace("\\", "/") in path_lower for p in TEST_FILE_PATTERNS)
 
 
-    def _normalize_stack(stack: str) -> str:
-        mapping = {
+def _normalize_stack(stack: str) -> str:
+    mapping = {
             "laravel": "php", "symfony": "php", "codeigniter": "php",
             "flask": "python", "django": "python", "fastapi": "python",
             "express": "node", "nestjs": "node", "nextjs": "node",
@@ -274,5 +274,5 @@
             "aspnet": "csharp", "asp.net": "csharp",
             "aspnetcore": "csharp", "mvc": "csharp",
             "blazor": "csharp", "webapi": "csharp",
-        }
-        return mapping.get(stack.lower(), stack.lower())
+    }
+    return mapping.get(stack.lower(), stack.lower())
