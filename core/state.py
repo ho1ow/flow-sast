@@ -109,6 +109,7 @@ class PentestState(TypedDict):
     process_flows: List[dict]   # GitNexus business process flows
     business_context: dict       # Extracted from README/docs/OpenAPI/schema
     catalog_checksum: str
+    cx_seed: dict               # Checkmarx SARIF seed (optional, not in Claude ctx)
 
     # ── Connect ───────────────────────────────────────────────────────────────
     structural_paths: List[dict]

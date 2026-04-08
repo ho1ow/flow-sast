@@ -1,17 +1,18 @@
 """
 main.py
 ────────
-AI Pentest Agent — CLI entry point.
+flow-sast — CLI entry point.
 
 Usage:
   python main.py --repo /path/to/repo --stack django
   python main.py --repo /path/to/repo --stack auto --run-id myrun001 --resume
   python main.py --repo /path/to/repo --stack flask --dry-run
+  python main.py --repo /path/to/repo --stack laravel --context business.md
 
 Output:
-  pentest_logs/output/<run_id>/findings.sarif    — SARIF findings file
-  pentest_logs/output/<run_id>/findings.json     — Raw findings JSON
-  pentest_logs/audit_trail/<run_id>.jsonl        — Audit trail
+  reports/<run_id>/findings.sarif    — SARIF findings file
+  reports/<run_id>/findings.json     — Raw findings JSON
+  pentest_logs/audit_trail/<run_id>.jsonl  — Audit trail
 """
 
 from __future__ import annotations
@@ -34,13 +35,14 @@ from rich.table import Table
 from core.reliability import load_config, audit_log, checkpoint_load
 from core.state import initial_state
 from core.workflow import build_graph
+from phases._1_catalog.checkmarx_loader import load_checkmarx_sarif, print_cx_summary
 
 console = Console()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="AI Pentest Agent — automated SAST vulnerability pipeline",
+        description="flow-sast — automated whitebox SAST + AI verification pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--repo",    required=True,  help="Path to repository to analyze")
@@ -48,6 +50,14 @@ def main() -> None:
                         choices=["auto", "django", "flask", "fastapi", "spring", "express",
                                  "nestjs", "gin", "rails", "php", "laravel"],
                         help="Technology stack (auto = detect from file extensions)")
+    parser.add_argument("--context", default=None,
+                        help="(Optional) Path to a .md/.txt file describing system business context "
+                             "(e.g. what the app does, critical assets, business flows). "
+                             "If provided, overrides auto-detection from README/docs.")
+    parser.add_argument("--checkmarx-sarif", default=None, dest="checkmarx_sarif",
+                        help="(Optional) Path to Checkmarx SARIF output file. "
+                             "Used as seed for CATALOG sources/sinks and triage boost signal. "
+                             "NOT injected into Claude context — preserves independent AI judgment.")
     parser.add_argument("--run-id",  default=None,   help="Custom run ID (default: auto-generated)")
     parser.add_argument("--config",  default="tools_config.json",
                         help="Path to tools_config.json (default: tools_config.json)")
@@ -60,12 +70,12 @@ def main() -> None:
     parser.add_argument("--no-burp", action="store_true",
                         help="Skip Burp MCP dynamic verification")
     parser.add_argument("--output",  default=None,
-                        help="Custom output directory (default: pentest_logs/output/<run_id>)")
+                        help="Custom output directory (default: reports/<run_id>)")
     args = parser.parse_args()
 
     # ── Setup ─────────────────────────────────────────────────────────────────
     console.print(Panel.fit(
-        "[bold cyan]AI Pentest Agent[/bold cyan]\n"
+        "[bold cyan]flow-sast[/bold cyan]\n"
         "[dim]Automated SAST + Semantic Verification Pipeline[/dim]",
         border_style="cyan",
     ))
@@ -105,6 +115,23 @@ def main() -> None:
     console.print(f"[green]▶ Stack:[/green] {stack}")
     console.print(f"[green]▶ Output:[/green] {output_dir}")
 
+    # Load user-provided business context (optional)
+    user_context: dict = {}
+    if args.context:
+        ctx_path = Path(args.context)
+        if ctx_path.exists():
+            raw = ctx_path.read_text(encoding="utf-8", errors="ignore")
+            user_context = {
+                "system_type":     "user_provided",
+                "description":     raw[:500],
+                "raw_excerpts":    [raw[:2000]],
+                "source":          str(ctx_path),
+                "user_provided":   True,
+            }
+            console.print(f"[green]▶ Context:[/green] {ctx_path} ({len(raw)} chars)")
+        else:
+            console.print(f"[yellow]⚠ --context file not found: {ctx_path} — skipping[/yellow]")
+
     # ── Initial state ──────────────────────────────────────────────────────────
     state = initial_state(
         repo_path=repo_path,
@@ -113,6 +140,8 @@ def main() -> None:
         checkpoint_dir=checkpoint_dir,
         config=cfg,
     )
+    if user_context:
+        state["business_context"] = user_context  # override auto-detect
 
     # Resume from checkpoint?
     if args.resume:
@@ -312,9 +341,9 @@ def _to_sarif(findings: list, repo_path: str, run_id: str) -> dict:
         "runs": [{
             "tool": {
                 "driver": {
-                    "name": "AI Pentest Agent",
+                    "name": "flow-sast",
                     "version": "1.0.0",
-                    "informationUri": "https://github.com/your-org/ai-pentest-agent",
+                    "informationUri": "https://github.com/ho1ow/flow-sast",
                     "rules": list(rules.values()),
                 }
             },

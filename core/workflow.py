@@ -84,6 +84,7 @@ from phases._4_analyze.client_agent    import client_agent
 from phases._4_analyze.authz_agent     import authz_agent
 from phases._4_analyze.biz_logic_agent import biz_logic_agent
 from phases._4_analyze.hardcode_agent  import hardcode_agent
+from phases._4_analyze.human_review    import human_review_gate  # Human-in-the-loop
 
 # CONFIRM imports
 from phases._5_confirm.burp_mcp_client import confirm_burp
@@ -201,6 +202,7 @@ def build_graph(use_memory_saver: bool = True) -> StateGraph:
     builder.add_node("biz_logic_agent", biz_logic_agent)
     builder.add_node("hardcode_agent",  hardcode_agent)
     builder.add_node("advance_after_analyze", advance_after_analyze)
+    builder.add_node("human_review_gate", human_review_gate)   # ⏸ pause for human
 
     # Fan-out: server_agent is entry, all others run in parallel
     for agent in ["client_agent", "authz_agent", "biz_logic_agent", "hardcode_agent"]:
@@ -215,9 +217,11 @@ def build_graph(use_memory_saver: bool = True) -> StateGraph:
         check_more_paths,
         {
             "verify_enrich": "verify_enrich",
-            "confirm_burp":  "confirm_burp",
+            "confirm_burp":  "human_review_gate",   # ► pause before confirm
         },
     )
+
+    builder.add_edge("human_review_gate", "confirm_burp")
 
     # ── CONFIRM + FEEDBACK phase ───────────────────────────────────────────────
     builder.add_node("confirm_burp",    confirm_burp)

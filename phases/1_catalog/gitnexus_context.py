@@ -102,6 +102,13 @@ def catalog_gitnexus_context(state: PentestState) -> dict:
     if cached:
         return cached
 
+    # ── User-provided context takes priority — skip auto-detect ──────────────
+    existing_ctx = state.get("business_context", {})
+    if existing_ctx.get("user_provided"):
+        audit_log(audit_dir, run_id, "catalog_gitnexus_context:skip",
+                  {"reason": "user_provided_context", "source": existing_ctx.get("source", "")})
+        return {}   # no-op: state already has context
+
     binary = gitnexus_cfg.get("binary", "gitnexus")
     timeout = gitnexus_cfg.get("timeout_seconds", 60)
 
