@@ -48,7 +48,8 @@ def main() -> None:
     parser.add_argument("--repo",    required=True,  help="Path to repository to analyze")
     parser.add_argument("--stack",   default="auto",
                         choices=["auto", "django", "flask", "fastapi", "spring", "express",
-                                 "nestjs", "gin", "rails", "php", "laravel"],
+                                 "nestjs", "gin", "rails", "php", "laravel",
+                                 "csharp", "dotnet", "aspnet"],
                         help="Technology stack (auto = detect from file extensions)")
     parser.add_argument("--context", default=None,
                         help="(Optional) Path to a .md/.txt file describing system business context "

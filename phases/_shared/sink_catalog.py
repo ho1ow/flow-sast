@@ -37,6 +37,15 @@ DB_SINKS: List[str] = [
     # Java
     "createNativeQuery", "createQuery", "executeQuery", "executeUpdate",
     "prepareStatement",
+    # C# / .NET
+    "SqlCommand", "SqlCommand.ExecuteNonQuery", "SqlCommand.ExecuteReader",
+    "SqlCommand.ExecuteScalar", "SqlDataAdapter",
+    "OleDbCommand", "OdbcCommand", "NpgsqlCommand", "MySqlCommand",
+    "DbCommand.ExecuteNonQuery", "DbCommand.ExecuteReader",
+    "context.Database.ExecuteSqlRaw", "context.Database.ExecuteSqlRawAsync",
+    "context.Database.ExecuteSqlCommand",
+    "FromSqlRaw", "FromSqlInterpolated",
+    "SqlQuery", "SqlQueryRaw",
 ]
 
 EXEC_SINKS: List[str] = [
@@ -60,6 +69,13 @@ EXEC_SINKS: List[str] = [
     "exec.Command", "os/exec.Command",
     # Ruby
     "system", "exec", "spawn", "IO.popen", "Open3.popen3", "backtick",
+    # C# / .NET
+    "Process.Start", "Process.Start",
+    "Shell", "ProcessStartInfo",
+    "Diagnostics.Process.Start",
+    "Assembly.Load", "Assembly.LoadFrom", "Assembly.LoadFile",
+    "Activator.CreateInstance",
+    "Type.InvokeMember",
 ]
 
 FILE_SINKS: List[str] = [
@@ -79,6 +95,14 @@ FILE_SINKS: List[str] = [
     "createWriteStream",
     # Java
     "FileWriter", "FileOutputStream", "Files.write", "Files.copy",
+    # C# / .NET
+    "File.WriteAllText", "File.WriteAllBytes", "File.AppendAllText",
+    "File.ReadAllText", "File.ReadAllBytes",
+    "FileStream", "StreamWriter", "StreamReader",
+    "Path.Combine",        # path traversal if user-controlled
+    "Directory.CreateDirectory", "Directory.Delete",
+    "File.Delete", "File.Move", "File.Copy",
+    "IFormFile.SaveAs", "IFormFile.CopyTo",
 ]
 
 HTML_SINKS: List[str] = [
@@ -95,6 +119,10 @@ HTML_SINKS: List[str] = [
     "dangerouslySetInnerHTML",
     # Node
     "res.send", "res.write", "res.json",
+    # C# / .NET / Razor
+    "Html.Raw", "MvcHtmlString.Create", "HtmlString",
+    "Response.Write", "Response.Output.Write",
+    "Content",     # Controller.Content() with mimetype text/html
 ]
 
 URL_SINKS: List[str] = [
@@ -113,6 +141,13 @@ URL_SINKS: List[str] = [
     "http.get", "https.get", "request.get",
     # Go
     "http.Get", "http.Post", "http.Do",
+    # C# / .NET
+    "HttpClient.GetAsync", "HttpClient.PostAsync", "HttpClient.SendAsync",
+    "WebClient.DownloadString", "WebClient.UploadString",
+    "WebRequest.Create", "HttpWebRequest",
+    "Response.Redirect",    # open redirect
+    "Redirect",             # ASP.NET MVC redirect
+    "RedirectPermanent",
 ]
 
 DESERIALIZE_SINKS: List[str] = [
@@ -131,6 +166,17 @@ DESERIALIZE_SINKS: List[str] = [
     # Node
     "node-serialize",
     "serialize-javascript",
+    # C# / .NET
+    "BinaryFormatter.Deserialize",
+    "SoapFormatter.Deserialize",
+    "LosFormatter.Deserialize",
+    "ObjectStateFormatter.Deserialize",
+    "NetDataContractSerializer.ReadObject",
+    "XmlSerializer.Deserialize",
+    "DataContractSerializer.ReadObject",
+    "JavaScriptSerializer.Deserialize",
+    "Json.Decode",      # System.Web.Helpers
+    "TypeNameHandling", # Newtonsoft — dangerous when != None
 ]
 
 XML_SINKS: List[str] = [
@@ -145,6 +191,13 @@ XML_SINKS: List[str] = [
     "xml.etree.ElementTree.parse",
     # Java
     "SAXParser.parse", "DocumentBuilder.parse",
+    # C# / .NET
+    "XmlDocument.LoadXml", "XmlDocument.Load",
+    "XmlReader.Create",
+    "XDocument.Load", "XDocument.Parse",
+    "XElement.Load", "XElement.Parse",
+    "XPathDocument",
+    "XmlTextReader",   # old, no entity protection by default
 ]
 
 LOG_SINKS: List[str] = [
@@ -191,6 +244,9 @@ SANITIZERS_BY_CATEGORY: Dict[str, List[str]] = {
         "escape", "real_escape_string", "mysqli_real_escape_string",
         "pg_escape_string", "pg_escape_literal", "pg_escape_identifier",
         "quote", "sanitize_sql", "sanitize_sql_array", "sanitize_sql_like",
+        # C# EF Core parameterized
+        "SqlParameter", "DbParameter", "AddWithValue",
+        "FromSqlInterpolated",   # safe (parameterized interpolation)
     ],
     "EXEC_SINK": [
         "escapeshellarg", "escapeshellcmd",
@@ -200,24 +256,37 @@ SANITIZERS_BY_CATEGORY: Dict[str, List[str]] = {
         "basename", "realpath", "pathinfo",
         "os.path.abspath", "os.path.normpath", "os.path.basename",
         "path.resolve", "path.normalize", "path.basename",
+        # C#
+        "Path.GetFileName", "Path.GetFullPath",
     ],
     "HTML_SINK": [
         "htmlspecialchars", "htmlentities", "strip_tags",
         "DOMPurify.sanitize", "bleach.clean", "markupsafe.escape",
         "h(", "escape(", "encode(",
+        # C# / ASP.NET
+        "HtmlEncoder.Default.Encode", "WebUtility.HtmlEncode",
+        "HttpUtility.HtmlEncode", "AntiXssEncoder.HtmlEncode",
+        "@",    # Razor default-encodes
     ],
     "URL_SINK": [
         "filter_var", "filter_input",  # with FILTER_VALIDATE_URL
         "parse_url",   # partial — must check host against allowlist
+        # C#
+        "Uri.IsWellFormedUriString",
     ],
     "DESERIALIZE_SINK": [
         "yaml.safe_load", "yaml.safe_dump",
         "json.loads", "json.load",
+        # C# safe alternatives
+        "JsonSerializer.Deserialize",  # System.Text.Json — safe by default
+        "Newtonsoft.Json.JsonConvert.DeserializeObject",  # OK if TypeNameHandling=None
     ],
     "XML_SINK": [
         "XMLParser(resolve_entities=False)",
         "libxml_disable_entity_loader",
         "FEATURE_EXTERNAL_GENERAL_ENTITIES",
+        # C# safe XmlReader
+        "XmlReaderSettings.DtdProcessing = DtdProcessing.Prohibit",
     ],
     "TEMPLATE_SINK": [
         "escape(",

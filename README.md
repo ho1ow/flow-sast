@@ -224,7 +224,8 @@ node       express    nestjs
 java       spring
 go         gin
 ruby       rails
-auto       # Tự detect dựa trên file extensions
+csharp     dotnet     aspnet     (aliases: aspnetcore, webapi, blazor)
+auto       # Tự detect dựa trên file extensions (.cs/.csproj → csharp)
 ```
 
 ### Ví dụ
