@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  # ── Joern REST server ───────────────────────────────────────────────────────
+  joern:
+    image: ghcr.io/joernio/joern:latest
+    container_name: pentest_joern
+    ports:
+      - "8080:8080"
+    command: ["--server", "--server-host", "0.0.0.0"]
+    volumes:
+      - repo_data:/target:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── AI Pentest Agent ────────────────────────────────────────────────────────
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: pentest_agent
+    depends_on:
+      joern:
+        condition: service_healthy
+    volumes:
+      - repo_data:/target:ro
+      - ./output:/app/pentest_logs/output
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - BURP_MCP_API_KEY=${BURP_MCP_API_KEY:-}
+    env_file:
+      - ../.env
+    command: >
+      python main.py
+      --repo /target
+      --stack ${STACK:-auto}
+      --config /app/tools_config.json
+
+volumes:
+  repo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${REPO_PATH:-.}

@@ -1,0 +1,47 @@
+{
+  "_comment": "Tool paths, timeouts, model config — NO secrets here. Secrets go in .env",
+
+  "anthropic": {
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 4096,
+    "temperature": 0.1,
+    "max_concurrency": 3
+  },
+
+  "joern": {
+    "timeout_seconds": 300,
+    "cpg_build_timeout": 600,
+    "retry_attempts": 3
+  },
+
+  "gitnexus": {
+    "binary": "gitnexus",
+    "timeout_seconds": 120,
+    "extra_args": []
+  },
+
+  "semgrep": {
+    "configs": ["auto", "p/security-audit", "p/owasp-top-ten"],
+    "custom_rules_dir": "pentest_rules",
+    "timeout_seconds": 300,
+    "max_memory_mb": 2048,
+    "jobs": 4
+  },
+
+  "burp_mcp": {
+    "timeout_seconds": 60,
+    "follow_redirects": true,
+    "rate_limit_rps": 10
+  },
+
+  "pipeline": {
+    "triage_threshold": 6,
+    "max_paths_per_run": 200,
+    "verify_max_retries": 2,
+    "checkpoint_dir": "pentest_logs/checkpoints",
+    "audit_dir": "pentest_logs/audit_trail",
+    "output_dir": "reports",
+    "code_context_lines": 50,
+    "max_feedback_paths": 20
+  }
+}

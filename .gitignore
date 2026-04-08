@@ -1,0 +1,62 @@
+# ── Secrets & local config ────────────────────────────────────────────────────
+.env
+tools_config.json          # chứa API keys — KHÔNG commit
+*.key
+*.pem
+*.p12
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.egg
+MANIFEST
+
+# ── Virtual env ───────────────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+.env.local
+.env.*.local
+
+# ── Pipeline runtime data ─────────────────────────────────────────────────────
+pentest_logs/              # checkpoints, audit trail, output
+reports/                   # findings JSON / SARIF output
+pentest_rules/             # auto-generated Semgrep rules from gitnexus
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.coveragerc
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker/.env
+docker/data/
+
+# ── Joern ────────────────────────────────────────────────────────────────────
+workspace/
+*.cpg
+*.bin
+
+# ── KEEP (force-include) ──────────────────────────────────────────────────────
+!.env.example              # template PHẢI commit
+!tools_config.json.env     # template PHẢI commit (sẽ đổi thành tools_config.example.json)
