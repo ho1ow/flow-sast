@@ -1,50 +1,187 @@
-version: "3.9"
+# ─────────────────────────────────────────────────────────────────────────────
+# flow-sast — Docker Compose
+#
+# Services:
+#   flow-sast   — Main pipeline (Python + Semgrep + Gitleaks + GitNexus)
+#   joern       — CPG/CFG REST server (Java 17 + Joern)
+#
+# Usage:
+#   # Basic — analyze a local repo
+#   REPO_PATH=/projects/myapp STACK=laravel docker compose up flow-sast
+#
+#   # With Checkmarx seed
+#   REPO_PATH=/path/repo CX_SARIF=/path/cx.sarif docker compose run --rm flow-sast \
+#     python main.py --repo /repo --stack php --checkmarx-sarif /cx/cx.sarif
+#
+#   # CI/CD unattended
+#   REPO_PATH=/path/repo docker compose run --rm flow-sast \
+#     python main.py --repo /repo --stack auto --no-review --no-burp
+#
+#   # Build only Joern REST server
+#   docker compose up -d joern
+#
+# Volumes mounted:
+#   $REPO_PATH       → /repo   (read-only)  — target repository
+#   ./reports        → /app/reports          — SARIF + JSON output
+#   ./pentest_logs   → /app/pentest_logs     — checkpoints + audit trail
+#   $CX_SARIF dir   → /cx     (read-only)  — optional Checkmarx SARIF
+#
+# Secrets: copy .env.example → .env and fill in values
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  # ── Joern REST server ───────────────────────────────────────────────────────
-  joern:
-    image: ghcr.io/joernio/joern:latest
-    container_name: pentest_joern
-    ports:
-      - "8080:8080"
-    command: ["--server", "--server-host", "0.0.0.0"]
-    volumes:
-      - repo_data:/target:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
 
-  # ── AI Pentest Agent ────────────────────────────────────────────────────────
-  agent:
+  # ── Main flow-sast pipeline ──────────────────────────────────────────────
+  flow-sast:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: pentest_agent
+      args:
+        GITLEAKS_VERSION: "8.21.2"
+    image: flow-sast:latest
+    container_name: flow-sast
+
+    environment:
+      # ── Required ─────────────────────────────────────────────────────────
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY must be set in .env}
+
+      # ── Joern REST (auto-wired to joern service) ──────────────────────────
+      - JOERN_BASE_URL=http://joern:8080
+
+      # ── Burp Suite MCP (optional) ─────────────────────────────────────────
+      - BURP_MCP_BASE_URL=${BURP_MCP_BASE_URL:-}
+      - BURP_MCP_API_KEY=${BURP_MCP_API_KEY:-}
+
+    # Default run: analyze /repo with auto stack, CI/CD mode (no human review)
+    # Override completely with: docker compose run --rm flow-sast python main.py ...
+    command: >
+      python main.py
+        --repo /repo
+        --stack ${STACK:-auto}
+        --no-review
+        --config /app/tools_config.json
+
+    volumes:
+      # Target repo (read-only mount)
+      - type: bind
+        source: ${REPO_PATH:?Set REPO_PATH to the target repository path}
+        target: /repo
+        read_only: true
+
+      # Output: findings.json + output.sarif
+      - type: bind
+        source: ./reports
+        target: /app/reports
+
+      # Checkpoints + audit trail
+      - type: bind
+        source: ./pentest_logs
+        target: /app/pentest_logs
+
+      # Optional: Checkmarx SARIF directory
+      # Set CX_SARIF_DIR in .env to mount
+      - type: bind
+        source: ${CX_SARIF_DIR:-/tmp/cx_placeholder}
+        target: /cx
+        read_only: true
+        bind:
+          create_host_path: true
+
+      # tools_config.json from project root (read-only)
+      - type: bind
+        source: ../tools_config.json
+        target: /app/tools_config.json
+        read_only: true
+
     depends_on:
       joern:
         condition: service_healthy
-    volumes:
-      - repo_data:/target:ro
-      - ./output:/app/pentest_logs/output
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - BURP_MCP_API_KEY=${BURP_MCP_API_KEY:-}
-    env_file:
-      - ../.env
-    command: >
-      python main.py
-      --repo /target
-      --stack ${STACK:-auto}
-      --config /app/tools_config.json
+        required: false   # pipeline works without Joern (--no-joern mode)
 
+    networks:
+      - flow-sast-net
+
+    restart: "no"
+
+    # Reasonable limits for analysis
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "4"
+        reservations:
+          memory: 512M
+
+    # Env file for secrets
+    env_file:
+      - path: ../.env
+        required: false   # optional — can use shell env instead
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+
+  # ── Joern CPG / CFG REST server ──────────────────────────────────────────
+  joern:
+    build:
+      context: .
+      dockerfile: Dockerfile.joern
+      args:
+        JOERN_VERSION: "4.0.33"
+    image: flow-sast-joern:latest
+    container_name: flow-sast-joern
+
+    ports:
+      # Expose for debugging (remove in production)
+      - "${JOERN_PORT:-8080}:8080"
+
+    volumes:
+      # CPG workspace — Joern stores parsed CPGs here
+      - joern-workspace:/workspace
+
+    networks:
+      - flow-sast-net
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/v1/version"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+    # Joern needs at least 2GB heap for real projects
+    environment:
+      - JAVA_OPTS=-Xmx4g -Xms1g -XX:+UseG1GC
+
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "4"
+        reservations:
+          memory: 2G
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+
+# ── Networks ────────────────────────────────────────────────────────────────
+networks:
+  flow-sast-net:
+    driver: bridge
+    name: flow-sast-net
+
+
+# ── Volumes ─────────────────────────────────────────────────────────────────
 volumes:
-  repo_data:
+  joern-workspace:
+    name: flow-sast-joern-workspace
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${REPO_PATH:-.}

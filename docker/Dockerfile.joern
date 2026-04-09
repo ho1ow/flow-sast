@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# flow-sast — Joern CPG/CFG REST server
+# Base: eclipse-temurin:17-jre-slim (JRE only, smallest footprint)
+#
+# What this does:
+#   - Downloads Joern CLI (joern-cli.zip from GitHub releases)
+#   - Starts joern-server on port 8080
+#   - flow-sast's joern_client.py connects via REST API to run Cypher queries
+#
+# Joern REST endpoints used by flow-sast:
+#   POST /api/v1/query   — run Cypher/Joern query
+#   GET  /api/v1/version — health check
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM eclipse-temurin:17-jre-slim
+
+LABEL org.opencontainers.image.title="flow-sast-joern"
+LABEL org.opencontainers.image.description="Joern CPG REST server for flow-sast"
+
+# ── System deps ───────────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        unzip \
+        ca-certificates \
+        procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Download + install Joern CLI ─────────────────────────────────────────────
+# Pin version for reproducibility — check https://github.com/joernio/joern/releases
+ARG JOERN_VERSION=4.0.33
+ENV JOERN_VERSION=${JOERN_VERSION}
+
+RUN set -eux; \
+    curl -sSL \
+        "https://github.com/joernio/joern/releases/download/v${JOERN_VERSION}/joern-cli.zip" \
+        -o /tmp/joern-cli.zip \
+    && unzip -q /tmp/joern-cli.zip -d /opt \
+    && rm /tmp/joern-cli.zip \
+    && mv /opt/joern-cli /opt/joern \
+    && chmod +x /opt/joern/joern-server \
+    && chmod +x /opt/joern/joern \
+    && /opt/joern/joern --version
+
+ENV PATH="/opt/joern:${PATH}"
+
+# ── Create non-root user ─────────────────────────────────────────────────────
+RUN groupadd --gid 1001 joernuser \
+    && useradd --uid 1001 --gid 1001 --no-create-home joernuser \
+    && mkdir -p /workspace /home/joernuser/.joern \
+    && chown -R joernuser:joernuser /workspace /home/joernuser
+
+USER joernuser
+
+# Mount CPG data here (target repos for analysis)
+VOLUME ["/workspace"]
+
+# ── Expose REST server port ───────────────────────────────────────────────────
+EXPOSE 8080
+
+# ── Health check ──────────────────────────────────────────────────────────────
+HEALTHCHECK \
+    --interval=20s \
+    --timeout=10s \
+    --retries=10 \
+    --start-period=90s \
+    CMD curl -sf http://localhost:8080/api/v1/version || exit 1
+
+# ── Startup ───────────────────────────────────────────────────────────────────
+ENTRYPOINT ["joern-server"]
+CMD ["--port", "8080", "--host", "0.0.0.0", "--storage", "/workspace"]

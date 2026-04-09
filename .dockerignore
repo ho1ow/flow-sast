@@ -1,0 +1,65 @@
+# .dockerignore for flow-sast
+# Excludes sensitive files and unnecessary build context from Docker builds
+
+# ── Secrets / Config ─────────────────────────────────────────────────────────
+.env
+tools_config.json
+**/.env
+**/.env.local
+**/.env.*
+
+# ── Output / Runtime ─────────────────────────────────────────────────────────
+reports/
+pentest_logs/
+*.sarif
+*.jsonl
+*.log
+
+# ── Python artifacts ─────────────────────────────────────────────────────────
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── VCS ──────────────────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── IDE / Editor ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+**/*.DS_Store
+Thumbs.db
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Docs (not needed in runtime image) ───────────────────────────────────────
+docs/
+*.md
+!README.md
+
+# ── Target repos (never bake into image — mount at runtime) ──────────────────
+sample/
+targets/
+repos/
